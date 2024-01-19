@@ -1,9 +1,135 @@
 ﻿@page "/"
 
-<PageTitle>Index</PageTitle>
+@using System.Dynamic
 
-<h1>Hello, world!</h1>
+<TelerikGrid Data="@GridData"
+             Pageable="true"
+             Sortable="true"
+             FilterMode="@GridFilterMode.FilterRow"
+             EditMode="@GridEditMode.Incell"
+             OnEdit="@OnGridEdit"
+             OnUpdate="@OnGridUpdate"
+             OnCreate="@OnGridCreate"
+             OnModelInit="@OnGridModelInit"
+             OnDelete="@OnGridDelete">
+    <GridToolBarTemplate>
+        <GridCommandButton Command="Add" Icon="@SvgIcon.Plus">Add Item</GridCommandButton>
+    </GridToolBarTemplate>
+    <GridColumns>
+        @{
+            @* dynamic columns *@
 
-Welcome to your new app.
+            if (GridData != null && GridData.Any())
+            {
+                // The first data item should always contain non-null values for the property types to be determined.
+                // Use another data item or OnModelInit to populate default values for newly added items.
+                var firstDataItem = (IDictionary<string, object>)GridData.First();
 
-<SurveyPrompt Title="How is Blazor working for you?" />
+                foreach (var item in firstDataItem)
+                {
+                    if (item.Key != "Id")
+                    {
+                        <GridColumn Field="@item.Key" FieldType="@item.Value.GetType()" @key="@item.Key">
+                        </GridColumn>
+                    }
+                }
+            }
+        }
+
+        @* or static columns *@
+
+        @*<GridColumn Field="PropertyInt" Title="Int Column" FieldType="@typeof(int)" />
+        <GridColumn Field="PropertyString" Title="String Column" FieldType="@typeof(string)" />
+        <GridColumn Field="PropertyDate" Title="DateTime Column" FieldType="@typeof(DateTime)" />*@
+
+        <GridCommandColumn @key="@( "command-column" )">
+            <GridCommandButton Command="Delete" Icon="@SvgIcon.Trash">Delete</GridCommandButton>
+        </GridCommandColumn>
+    </GridColumns>
+</TelerikGrid>
+
+@code {
+    private List<ExpandoObject> GridData { get; set; } = new List<ExpandoObject>();
+
+    private IDictionary<string, object> GridEditItem { get; set; }
+
+    private int LastId { get; set; }
+
+    private async Task OnGridEdit(GridCommandEventArgs args)
+    {
+        GridEditItem = (IDictionary<string, object>)args.Item;
+    }
+
+    private async Task OnGridUpdate(GridCommandEventArgs args)
+    {
+        var item = (IDictionary<string, object>)args.Item;
+
+        // There are two ways to update the data item:
+        // Store its instance in OnEdit, or find it in the Grid Data via search by Id.
+
+        @*IDictionary<string, object> originalItem = GridData.Find(x =>
+            {
+                return ((IDictionary<string, object>)x)["Id"] == item["Id"];
+            });*@
+
+        // In cell editing - update one property
+        @*originalItem[args.Field] = item[args.Field];*@
+        GridEditItem[args.Field] = item[args.Field];
+
+        // Inline or popup editing - update all properties
+        @*foreach (string key in item.Keys)
+            {
+                //originalItem[key] = item[key];
+                GridEditItem[key] = item[key];
+            }*@
+    }
+
+    private ExpandoObject OnGridModelInit()
+    {
+        // Use OnModelInit to populate default values in newly created rows.
+        // This is optional for the editing experience,
+        // but required if the Grid columns are generated from the first data item.
+        // The default values cannot be null, otherwise the property type cannot be determined.
+        dynamic expando = new ExpandoObject();
+
+        expando.Id = new int();
+        expando.PropertyInt = new int();
+        expando.PropertyString = String.Empty;
+        expando.PropertyDate = DateTime.Now;
+
+        return expando;
+    }
+
+    private async Task OnGridCreate(GridCommandEventArgs args)
+    {
+        var item = args.Item as ExpandoObject;
+
+        ((IDictionary<string, object>)item)["Id"] = ++LastId;
+
+        GridData.Insert(0, item);
+    }
+
+    private async Task OnGridDelete(GridCommandEventArgs args)
+    {
+        var item = args.Item as ExpandoObject;
+
+        GridData.Remove(item);
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        LastId = 15;
+
+        for (int i = 1; i <= LastId; i++)
+        {
+            dynamic expando = new ExpandoObject();
+
+            expando.Id = i;
+            expando.PropertyInt = i;
+            expando.PropertyString = "String " + i;
+            expando.PropertyDate = DateTime.Now.AddMonths(-i);
+
+            GridData.Add(expando);
+        }
+    }
+}
